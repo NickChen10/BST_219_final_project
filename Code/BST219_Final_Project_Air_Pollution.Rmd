@@ -1,0 +1,509 @@
+---
+title: "Final Project: What Drives Unhealthy Air in Beijing?"
+subtitle: "BST 219 · Core Principles of Data Science · Fall 2026"
+author: "Group members:"
+date: "Due: December 15 by 1:00pm ET"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    code_folding: show
+    highlight: tango
+    css: crimson.css
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 8, fig.height = 5, fig.align = "center")
+
+# Packages used in the PROVIDED code below. You will load a few more where noted
+# (e.g., a machine-learning package in Part 8).
+library(tidyverse)   # dplyr, ggplot2, readr, tidyr, forcats, etc.
+library(lubridate)   # working with dates
+library(tableone)    # Table 1
+library(broom)       # tidy model output
+```
+
+# Overview
+
+Your group has just been hired as the data science team for a city **Environmental Health Bureau**. The bureau's director is a **physician**, not a statistician or data scientist, and she decides when to issue **air-pollution health advisories**. She has asked you:
+
+1. **Which weather conditions, seasons, and locations go along with higher fine-particle air pollution (PM~2.5~)?** (a *number* — µg/m³)
+2. **On which days is the air most likely to be "unhealthy"?** (a *yes/no* outcome)
+
+You have four years of **hourly** air-quality and weather readings from 12 monitoring stations in Beijing (March 2013 to February 2017). You will take this file through the full data science pipeline — wrangling, missing data, summary statistics, visualization, and modeling with both **traditional regression** and **machine learning** — and then **explain your findings to the director in plain language.**
+
+<div class="keyidea">
+**You are writing for the director.** She decides when to warn the public, but will not read R code. Every justification, interpretation, and conclusion in this report must be written so that **an intelligent person with no statistics background** can follow it. Points throughout are for your *reasoning and communication*, not just correct code.
+</div>
+
+## Why PM~2.5~ matters
+
+PM~2.5~ are airborne particles 2.5 micrometers or smaller — small enough to reach deep into the lungs and the bloodstream. Short-term exposure is linked to asthma attacks, hospital admissions for heart and lung disease, and excess deaths. In this project, an **"unhealthy day"** is a day whose **24-hour average PM~2.5~ is above 75 µg/m³**, China's national standard (GB 3095-2012, Grade II) during the study period. For comparison, the current U.S. EPA 24-hour standard is 35 µg/m³ and the World Health Organization guideline is 15 µg/m³.
+
+# The Data
+
+`beijing_air_quality.csv` has **one row per station per hour** (about 420,000 rows). Keep it in the same folder as this `.Rmd`.
+
+| Variable | Description | Units |
+|:--|:--|:--|
+| `No` | Row number within each station's original file | — |
+| `year`, `month`, `day`, `hour` | Date and hour of the reading (`hour` runs 0–23) | — |
+| `PM2.5` | Fine particulate matter concentration | µg/m³ |
+| `PM10` | Coarse + fine particulate matter concentration | µg/m³ |
+| `SO2` | Sulfur dioxide concentration | µg/m³ |
+| `NO2` | Nitrogen dioxide concentration | µg/m³ |
+| `CO` | Carbon monoxide concentration | µg/m³ |
+| `O3` | Ozone concentration | µg/m³ |
+| `TEMP` | Air temperature | °C |
+| `PRES` | Atmospheric pressure | hPa |
+| `DEWP` | Dew point temperature (higher = more moisture in the air) | °C |
+| `RAIN` | Precipitation in that hour | mm |
+| `wd` | Wind direction (16 compass points, e.g., `N`, `NNE`, `NE`, …) | — |
+| `WSPM` | Wind speed | m/s |
+| `station` | Name of the monitoring station (12 stations) | — |
+
+**Source / citation.** Zhang S, Guo B, Dong A, He J, Xu Z, Chen SX. Cautionary tales on air-quality improvement in Beijing. *Proceedings of the Royal Society A.* 2017;473:20170457. [Full text](https://royalsocietypublishing.org/doi/10.1098/rspa.2017.0457) · [UCI data page](https://archive.ics.uci.edu/dataset/501/beijing+multi+site+air+quality+data)
+
+<div class="tip">
+**Keep in mind:** these are observational data, so your models describe **associations, not causes**. You are also modeling **air pollution itself**, not a health outcome — linking pollution to illness would be the real-world next step.
+</div>
+
+# Instructions and Policies
+
+## What to submit
+
+Submit **both** files on Canvas, **one submission per group**:
+
+1. This completed **`.Rmd` file** (with every group member's name at the top)
+2. The **knitted `.html` file**
+
+The teaching staff must be able to knit your `.Rmd`. Keep `beijing_air_quality.csv` and `crimson.css` in the **same folder** as this file, and read the data with a **relative path** (`air <- read_csv("beijing_air_quality.csv")`) provided below. If you keep all of the files in the same folder, you will have no problem knitting the `.Rmd` file. 
+
+
+## How this group project works
+
+- This is a **group** project. All members are expected to contribute and share the grade. Divide the work, but make sure everyone understands the whole analysis.
+- Write code in the provided chunks (add more as needed). **Comment your code** and use `<-` for assignment.
+- Write text answers after each **Your answer:** prompt, **in your own words**.
+- Every figure needs a **title and axis labels with units**.
+- When a question asks for a **plain-language** explanation, write for the **director** from the Overview: no jargon, no variable names, no unexplained numbers.
+
+## Generative AI policy (from the syllabus)
+
+You **may** use generative AI tools (e.g., ChatGPT, Claude, Gemini) to brainstorm, draft outlines, generate or debug **code snippets**, and clarify concepts. You **may not** submit AI-generated text or code as your own without understanding and adapting it, and AI must not substitute for your own learning. **All written answers must be in your own words.** You must **cite any AI tools** you use and **describe that use in Part 11**. (See the full Generative AI Policy in the course syllabus.)
+
+## Grade breakdown (100 points)
+
+| Part | Topic | Points |
+|:--|:--|--:|
+| 1 | Import and inspect the data | 4 |
+| 2 | Data wrangling | 12 |
+| 3 | Managing missing data | 8 |
+| 4 | Summary statistics and Table 1 | 10 |
+| 5 | Data visualization | 12 |
+| 6 | Linear regression (PM~2.5~) | 12 |
+| 7 | Machine learning (regression & classification) | 18 |
+| 8 | Fairness and bias | 5 |
+| 9 | Memo to the director (plain language) | 10 |
+| 10 | Generative AI use statement | 3 |
+| — | Reproducibility and code quality (knits, relative paths, commented code) | 6 |
+| | **Total** | **100** |
+
+# Part 1: Import and Inspect the Data (4 points)
+
+### Question 1.1 (2 points)
+
+Read in the data and report:
+
+a) The number of rows and columns.
+b) The number of stations.
+c) The first and last dates in the data.
+
+```{r q1-1}
+# Read the data, rename PM2.5 (the period in the name is awkward to type),
+# and build a proper calendar date from year, month, day.
+air <- read_csv("beijing_air_quality.csv") %>%
+  rename(pm25 = `PM2.5`) %>%
+  mutate(date = make_date(year, month, day))
+
+# (a) rows and columns
+
+
+# (b) number of stations
+
+
+# (c) first and last dates
+
+
+```
+
+### Question 1.2 (2 points)
+
+a) Run `summary()` on `pm25`, `TEMP`, `DEWP`, `RAIN`, and `WSPM`. 
+b) Point out **one** value or pattern that surprises you, and say whether you would keep, change, or remove it.
+
+```{r q1-2}
+# Your code here
+
+```
+
+**Your answer:**
+
+>
+
+# Part 2: Data Wrangling (12 points)
+
+Health advisories and air-quality standards are based on **daily** averages. In this part you will turn the hourly data into a **daily dataset with one row per station per day**. This is the hardest part of the project — take it step by step.
+
+### Question 2.1 — Season and wind direction (4 points)
+
+In the **hourly** `air` data:
+
+a) Create `season`, a factor with levels in this order: `Spring` (Mar–May), `Summer` (Jun–Aug), `Fall` (Sep–Nov), `Winter` (Dec–Feb).
+b) Collapse the 16-level `wd` into `wind_dir` with **four** levels, leaving `NA` where `wd` is missing:
+
+| `wind_dir` | `wd` values |
+|:--|:--|
+| North | `NNW`, `N`, `NNE`, `NE` |
+| East | `ENE`, `E`, `ESE`, `SE` |
+| South | `SSE`, `S`, `SSW`, `SW` |
+| West | `WSW`, `W`, `WNW`, `NW` |
+
+c) Show a table of `month` by `season` and a table of `wd` by `wind_dir` to check your work. 
+d) In one sentence, explain why collapsing 16 wind levels into 4 is helpful for a model.
+
+```{r q2-1}
+# Your code here
+
+```
+
+**Your answer:**
+
+>
+
+### Question 2.2 — Build the daily dataset (8 points)
+
+a) Build `air_daily` with **one row per station per day**, working through the three steps below.
+
+**Step 1 — Daily averages.** From the hourly data, `group_by(station, date, season)` and then use `summarize()` to create:
+
+| New variable | What it should contain | Function |
+|:--|:--|:--|
+| `pm25_hours` | number of hours that day with a non-missing PM~2.5~ | `sum(!is.na(pm25))` |
+| `pm25` | daily **average** PM~2.5~ | `mean(..., na.rm = TRUE)` |
+| `temp`, `dewp`, `wspm` | daily averages of `TEMP`, `DEWP`, `WSPM` | `mean(..., na.rm = TRUE)` |
+| `rain` | daily **total** rainfall | `sum(..., na.rm = TRUE)` |
+
+Add `.groups = "drop"`. Save as `daily_means`.
+
+**Step 2 — Most common wind direction each day.** Create a new data frame called `daily_wind`. 
+From the hourly data: 
+
+* Remove missing values for `wind_dir` using `filter()`.
+* Use `count(station, date, wind_dir)` to tally how many hours each wind direction occurred, separately for every station on every day. This collapses the 24 hourly rows into at most a few rows per station-day — one per direction that showed up — and adds a new column `n` holding those hour counts.
+* Now use `group_by(station, date)` and then `slice_max(n, n = 1, with_ties = FALSE)`. Within each station-day group, this code keeps the single row with the largest n — i.e., the direction that blew the most hours that day. Two things to note about the arguments: the `n = 1` is `slice_max`'s own "how many rows to keep" argument (confusingly, it’s unrelated to the count column that also happens to be named `n`); and `with_ties = FALSE` forces exactly one row even on a tie — without it, a day split 12–12 between two directions would return both rows and break the "one row per station-day" guarantee. On a tie it keeps whichever the data lists first, which is arbitrary but harmless here.
+* Remove the grouping using `ungroup()`.
+* Use the `select` function to keep the only columns needed, `station`, `date`, and `wind_dir`.
+
+**Step 3 — Join and apply a completeness rule.** Create a new data frame called `air_daily`:
+
+* left_join()` `daily_wind` onto `daily_means` by `station` and `date`.
+* Use `mutate()` to set `pm25` to `NA` for any station-day with **fewer than 18 valid hours**. Use this code: (`if_else(pm25_hours < 18, NA_real_, pm25)`), and make `wind_dir` a factor. 
+
+b) Report the dimensions of `air_daily`.
+c) Report how many station-days have a missing `pm25` after the rule.
+
+<div class="tip">
+**Check your work:** `air_daily` should have one row for each of the 12 stations on each of the 1,461 days (≈ 17,532 rows). Far more rows → check your `group_by()`. Far fewer → check your join. `NA_real_` (not plain `NA`) is needed because `if_else()` wants both outcomes to be the same type.
+</div>
+
+```{r q2-2}
+# Step 1: daily averages
+
+
+# Step 2: most common wind direction each day
+
+
+# Step 3: join and apply the completeness rule
+
+
+# (a) dimensions
+
+
+# (b) number of station-days with missing pm25
+
+```
+
+**Your answer:**
+
+>
+
+### Question 2.3 — Define the outcomes and a humidity measure (bundled into Part 2)
+
+a) Add three variables to `air_daily`:
+
+* `unhealthy`: a factor, `"Yes"` if `pm25` > 75 and `"No"` otherwise, with `"No"` as the first level (keep `NA` when `pm25` is `NA`). **This is your yes/no outcome.**
+* `rain_any`: a factor, `"Yes"` if `rain` > 0 and `"No"` otherwise.
+* `dryness`: `temp - dewp` (the gap between temperature and dew point; larger = drier air).
+
+b) Report the **percentage of unhealthy days by season** and describe it in 2–3 plain-language sentences for the director.
+
+```{r q2-3}
+# Your code here
+
+```
+
+**Your answer:**
+
+>
+
+# Part 3: Managing Missing Data (8 points)
+
+### Question 3.1 (4 points)
+
+The code chunk below (provided) reports the number and percent missing for each variable in `air_daily`. 
+
+a) Remove `, eval = FALSE` and run the code chunk.
+b) Which variable has the most missing data?
+c) Report the **number of missing `pm25` values per station**.
+d) Which station has the most missing `pm25` days, and which the fewest?
+
+```{r q3-1-provided, eval = FALSE}
+air_daily %>%
+  summarize(across(everything(), ~ sum(is.na(.x)))) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "n_missing") %>%
+  mutate(pct_missing = round(100 * n_missing / nrow(air_daily), 2))
+```
+
+```{r q3-1}
+# Missing pm25 by station (hint: group_by(station) then summarize(sum(is.na(pm25))))
+
+```
+
+
+**Your answer:**
+
+>
+
+### Question 3.2 (4 points)
+
+Choose **one** way to handle missing `pm25` and build `air_analytic`:
+
+- **Option A:** drop station-days with missing `pm25` (complete-case), **or**
+- **Option B:** replace missing `pm25` with that **station's median** `pm25` (and re-create `unhealthy` afterward).
+
+Then:
+
+a) Justify your choice for handling missingness and name one drawback.
+b) Report the number of rows and the mean `pm25` before and after handling missing values.
+c) Say which missingness mechanism (MCAR, MAR, MNAR) is most plausible and why (*why might a monitor stop recording?*).
+
+```{r q3-2}
+# Your code here
+
+```
+
+**Your answer:**
+
+>
+
+# Part 4: Summary Statistics and Table 1 (10 points)
+
+### Question 4.1 (4 points)
+
+Using `air_analytic`:
+
+a) Compute the **mean, median, standard deviation, and IQR** of `pm25` **by season**.
+b) Which season has the highest PM~2.5~?
+c) The mean is higher than the median in every season. What does that say about the shape of the distribution, and which would you report as the "typical day"?
+
+```{r q4-1}
+# Your code here
+
+```
+
+**Your answer:**
+
+>
+
+### Question 4.2 (6 points)
+
+Using `air_analytic`:
+
+a) Use **`CreateTableOne()`** to make a **Table 1** comparing **unhealthy vs. healthy days** (stratified by `unhealthy`), including `temp`, `dryness`, `wspm`, `rain_any`, `wind_dir`, and `season`. Print with `kableone()`, using `nonnormal =` for any variable you judge to be skewed.
+b) Describe **two** differences between unhealthy and healthy days.
+c) In one or two **plain-language** sentences, describe what a typical unhealthy day "looks like" for the director.
+
+```{r q4-2}
+# Your code here
+
+```
+
+**Your answer:**
+
+>
+
+# Part 5: Data Visualization (12 points)
+
+Make the three figures below with **ggplot2**. Under each, write **a)** a one-sentence takeaway **for the director** and **b)** one or two sentences justifying your design choices.
+
+### Question 5.1 — PM~2.5~ over time (4 points)
+
+Plot the **monthly average PM~2.5~** across all stations over the four years, and add a horizontal reference line at **75 µg/m³**.
+
+```{r q5-1}
+# Your code here
+
+```
+
+**Your answer:**
+
+>
+
+### Question 5.2 — Differences across stations (4 points)
+
+Compare daily PM~2.5~ across the **12 stations** with boxplots, **ordered by median** (hint: `fct_reorder()`).
+
+```{r q5-2}
+# Your code here
+
+```
+
+**Your answer:**
+
+>
+
+### Question 5.3 — Wind and PM~2.5~ (4 points)
+
+Show the relationship between daily **wind speed** and **PM~2.5~**, faceted **by season** (`facet_wrap(~ season)`). With ~17,000 points, use transparency (`alpha`).
+
+```{r q5-3}
+# Your code here
+
+```
+
+**Your answer:**
+
+>
+
+# Part 6: Linear Regression — PM~2.5~ (12 points)
+
+### Question 6.1 (4 points)
+
+a) Fit a **simple linear regression** of `pm25` on `wspm`. 
+b) Interpret the slope in one sentence **with units**.
+c) Restate your interpretation in plain language for the director.
+
+```{r q6-1}
+# Your code here
+
+```
+
+**Your answer:**
+
+>
+
+### Question 6.2 (8 points)
+
+Because PM~2.5~ is right-skewed, we model **log(PM~2.5~)**. A coefficient *b* from a log model means a one-unit increase in the predictor changes PM~2.5~ by about **(e^b^ − 1) × 100 percent**.
+
+a) Fit `lm_full`: a multiple linear regression of `log(pm25)` on `wspm`, `dryness`, `rain_any`, `wind_dir`, `season`, and `station`. Convert the coefficients to percent changes with `round((exp(coef(lm_full)) - 1) * 100, 1)`.
+b) Interpret the **wind speed** percent change, with units, in plain language.
+c) Interpret the percent change for **one** categorical level (a `season`, `wind_dir`, or `station`), naming the **reference group**.
+d) Report the adjusted R² and explain in plain language what it means.
+
+```{r q6-2}
+# Your code here
+
+```
+
+**Your answer:**
+
+>
+
+# Part 7: Machine Learning — Regression & Classification (18 points)
+
+You will now train machine learning models on (1) the number (PM~2.5~) and (2) the yes/no outcome (unhealthy day). You may use any of the ML methods from class. Load the package(s) you need in the chunks below.
+
+<div class="tip">
+**Two practical tips:** (1) Split into **training and test** sets (e.g., 70/30 with `set.seed()`), fit on training, and report performance on the **test** set. (2) **Do not** use the other pollutants (`PM10`, `SO2`, `NO2`, `CO`, `O3`) to predict PM~2.5~ — they come from the same sources, so it is nearly circular. Predict from **weather, season, and station**, as in Part 6.
+</div>
+
+### Question 7.1 — Classification: which days are unhealthy? (10 points)
+
+a) Train **at least two** binary classification models for `unhealthy` on a training set and evaluate it on a test set. 
+b) Report multiple metrics from the **confusion matrix** as well as the **AUC** (e.g., with the `pROC` package). If you choose a Random Forest as one of the models, provide either a table or plot of variable importance and comment on which variables are the most predictive of the outcome.
+c) Create an ROC plot with a line for each model with a clearly labeled legend. 
+d) Compare the model performances (1) citing the metrics and ROC plot above and (2) in plain language.
+
+
+```{r q7-1}
+# Load your ML package(s) here, e.g. library(rpart) or library(randomForest)
+# Set a seed, split into train/test, fit, predict on test, evaluate.
+
+```
+
+**Your answer:**
+
+>
+
+### Question 7.2 — Regression: how high is PM~2.5~? (8 points)
+
+a) Train **at least two** machine-learning regression models for `pm25` (or `log(pm25)`).
+b) Calculate the test-set RMSE for each model and compare them. Which model performs better in terms of RMSE?
+c) Interpret the RMSE for both models in 1-2 sentences. 
+d) Which model would you recommend to the director and why?
+
+
+```{r q7-2}
+# Your code here
+
+```
+
+**Your answer:**
+
+>
+
+# Part 8: Fairness and Bias (5 points)
+
+Unlike a dataset about people, this one has no person-level sensitive attribute — but **where** you live still matters. Treat the **station** (location) as a stand-in for the neighborhoods people breathe in. 
+
+a) Using your test-set predictions, compare how often the model correctly flags unhealthy days **across stations**.
+b) Compare which stations bear the **most** unhealthy days.
+c) If an advisory system worked less well for the hardest-hit neighborhoods, the people most exposed would be the least protected. What would you check before the director relies on this model city-wide? (This is the idea of **environmental justice**.) Explain in 2-4 plain language sentences. 
+
+```{r q8}
+# Your code here
+
+```
+
+>
+
+# Part 9: Memo to the Director (10 points)
+
+Write a **250–350 word memo** to the director answering her two questions from the Overview. Include:
+
+- the **bottom line** in one or two sentences,
+- **three key findings**, with concrete numbers where they help,
+- **one practical recommendation** (when or where to prioritize advisories), and
+- **one limitation** stated honestly.
+
+Avoid jargon such as "coefficient," "p-value," "log," "AUC," or variable names. Write as if she will act on it.
+
+**Your memo:**
+
+>
+
+# Part 10: Generative AI Use Statement (3 points)
+
+Describe any use of generative AI tools in this project: **which tool(s)**, **what you used them for**, **how you checked the output**, and a **citation** for each tool (e.g., *OpenAI. ChatGPT. Accessed December 2026.*). If you did not use any, write: **"We did not use generative AI tools for this project."**
+
+**Your answer:**
+
+>
+
+---
+
+*Before you submit:* restart R (**Session → Restart R**) and knit from a clean session, so you know the file runs top to bottom. Confirm every group member's name is listed at the top.
