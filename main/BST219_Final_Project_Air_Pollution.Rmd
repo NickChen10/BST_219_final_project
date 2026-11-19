@@ -129,13 +129,20 @@ air <- read_csv("beijing_air_quality.csv") %>%
   mutate(date = make_date(year, month, day))
 
 # (a) rows and columns
-
+paste0("Rows: ",  # Use paste0 to contextualize outputs going forward
+       dim(air)[1],  # Rows
+       "  Columns: ",
+       dim(air)[2]) # Columns
 
 # (b) number of stations
-
+paste0("Number of stations: ",
+       length(unique(air$station))) # Length of vector of unique stations
 
 # (c) first and last dates
-
+paste0("First date: ",
+       range(air$date)[1], # First index of range function  
+       "  Last date: ",
+       range(air$date)[2]) # Second index of range function
 
 ```
 
@@ -145,13 +152,22 @@ a) Run `summary()` on `pm25`, `TEMP`, `DEWP`, `RAIN`, and `WSPM`.
 b) Point out **one** value or pattern that surprises you, and say whether you would keep, change, or remove it.
 
 ```{r q1-2}
-# Your code here
+# Summarize fields by column name
+summary(air[,c("pm25",
+               "TEMP",
+               "DEWP",
+               "RAIN",
+               "WSPM")])
+
+# Check what the top 5 PM 2.5 values are to see if 999.0 is common or reasonable
+head(sort(air$pm25,
+          decreasing = T))
 
 ```
 
 **Your answer:**
 
->
+> One value that suprises me is the max PM 2.5 of 999.0 µg/m³. Initially, I assumed this was a mistake or an NA code, however, after doing a bit of research, it seems that this value is possible during extremely heavy pollution events and is often the the maximum value that many PM2.5 monitors can display. As such, it's quite possible that this station experienced PM 2.5 levels far exceeding 999.0 µg/m³ but was simply unable to record them. Given that there is only a single data point with this value and there are other data points between 900-999 µg/m³, I would likely keep this data point in, knowing that it may be somewhat biased. If there is some way to recover the true value using the other data fields, I would also consider this as a resolution. 
 
 # Part 2: Data Wrangling (12 points)
 
@@ -175,13 +191,39 @@ c) Show a table of `month` by `season` and a table of `wd` by `wind_dir` to chec
 d) In one sentence, explain why collapsing 16 wind levels into 4 is helpful for a model.
 
 ```{r q2-1}
-# Your code here
+# Create a season factor
+air <- air %>% 
+  mutate(season = case_when( # Explicitly code each month/season pair
+    month %in% c(12, 1, 2) ~ "Winter",
+    month %in% c(3, 4, 5) ~ "Spring",
+    month %in% c(6, 7, 8) ~ "Summer",
+    month %in% c(9, 10, 11) ~ "Fall",
+    TRUE ~ NA # Set missing month data as NA for the season variable
+  ))
+  
+# Tabulate season by month
+table(air$month,
+      air$season)
+
+# Create a wind direction variable
+air <- air %>% 
+  mutate(wind_dir = case_when(
+    wd %in% c("NNW", "N", "NNE", "NE") ~ "North",
+    wd %in% c("ENE", "E", "ESE", "SE") ~ "East",
+    wd %in% c("SSE", "S", "SSW", "SW") ~ "South",
+    wd %in% c("WSW", "W", "WNW", "NW") ~ "West",
+    TRUE ~ NA
+  ))
+
+# Tabulate wind direction by wd
+table(air$wind_dir,
+      air$wd)
 
 ```
 
 **Your answer:**
 
->
+> Collapsing 16 wind levels into 4 is useful for modeling because it reduces the number of model parameters thereby decreasing our degrees of freedom and making our model simpler.
 
 ### Question 2.2 — Build the daily dataset (8 points)
 
