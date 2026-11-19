@@ -198,7 +198,7 @@ air <- air %>%
     month %in% c(3, 4, 5) ~ "Spring",
     month %in% c(6, 7, 8) ~ "Summer",
     month %in% c(9, 10, 11) ~ "Fall",
-    TRUE ~ NA # Set missing month data as NA for the season variable
+    TRUE ~ NA # Set missing month data to NA in the season variable
   ))
   
 # Tabulate season by month
@@ -212,12 +212,13 @@ air <- air %>%
     wd %in% c("ENE", "E", "ESE", "SE") ~ "East",
     wd %in% c("SSE", "S", "SSW", "SW") ~ "South",
     wd %in% c("WSW", "W", "WNW", "NW") ~ "West",
-    TRUE ~ NA
+    TRUE ~ NA # Set missing wd values to NA in the wind_dir variable
   ))
 
-# Tabulate wind direction by wd
+# Tabulate wind direction by wd including NA values
 table(air$wind_dir,
-      air$wd)
+      air$wd,
+      useNA = "ifany")
 
 ```
 
