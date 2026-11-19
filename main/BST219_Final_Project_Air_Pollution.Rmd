@@ -264,6 +264,23 @@ c) Report how many station-days have a missing `pm25` after the rule.
 
 ```{r q2-2}
 # Step 1: daily averages
+daily_means <- air %>% 
+  group_by(station,
+           date,
+           season) %>% 
+  summarize(pm25_hours = sum(!is.na(pm25)), # Number of hours that day with a non-missing PM2.5
+            pm25 = mean(pm25, na.rm = TRUE), # Daily average PM2.5
+            temp = mean(TEMP, na.rm = TRUE), # Daily average of temp 
+            dewp = mean(DEWP, na.rm = TRUE), # Daily average of dewp
+            WSPM = mean(WSPM, na.rm = TRUE), # Daily average of wspm
+            rain = sum(RAIN, na.rm = TRUE), # Daily total rainfall temp
+            .groups = "drop")  # Drop level grouping
+
+# Spot check these values are correct for the first station
+daily_means_test <- air %>% 
+  filter(station == unique(air$station[1]) & date == unique(air$date[1])) # THIS IS NOT FINISHED YET
+  
+  
 
 
 # Step 2: most common wind direction each day
