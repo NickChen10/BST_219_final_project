@@ -1,11 +1,11 @@
 # BST 219 final project - What Drives Unhealthy Air in Beijing?
 
 ## Group members and respective sections 
-Nick:  1-2
-Becky:  7-8
-Felix:  9
-Madeline: 3-4  
-Yehoon:  5-6
+Nick:  1-2  
+Becky:  7-8  
+Felix:  9  
+Madeline: 3-4    
+Yehoon:  5-6  
 
 ## File Structure
 {TBD}
