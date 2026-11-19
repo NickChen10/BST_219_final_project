@@ -2,10 +2,10 @@
 
 ## Group members and respective sections 
 Nick:  1-2  
-Becky:  7-8  
-Felix:  9  
 Madeline: 3-4    
 Yehoon:  5-6  
+Becky:  7-8  
+Felix:  9  
 
 ## File Structure
 {TBD}
@@ -13,3 +13,5 @@ Yehoon:  5-6
 ## Timeline
 - Nick will let everyone know when he's done
 - Madeline will do the same
+
+
