@@ -126,10 +126,12 @@ c) The first and last dates in the data.
 # and build a proper calendar date from year, month, day.
 air <- read_csv("beijing_air_quality.csv") %>%
   rename(pm25 = `PM2.5`) %>%
-  mutate(date = make_date(year, month, day))
+  mutate(date = make_date(year, 
+                          month, 
+                          day))
 
 # (a) rows and columns
-paste0("Rows: ",  # Use paste0 to contextualize outputs going forward
+paste0("Rows: ",  # Use paste0 to contextualize printed outputs going forward
        dim(air)[1],  # Rows
        "  Columns: ",
        dim(air)[2]) # Columns
@@ -141,7 +143,7 @@ paste0("Number of stations: ",
 # (c) first and last dates
 paste0("First date: ",
        range(air$date)[1], # First index of range function  
-       "  Last date: ",
+       "    Last date: ",
        range(air$date)[2]) # Second index of range function
 
 ```
@@ -161,13 +163,12 @@ summary(air[,c("pm25",
 
 # Check what the top 5 PM 2.5 values are to see if 999.0 is common or reasonable
 head(sort(air$pm25,
-          decreasing = T))
-
+          decreasing = T)) # Only one station is reporting 999 but others are close
 ```
 
 **Your answer:**
 
-> One value that suprises me is the max PM 2.5 of 999.0 µg/m³. Initially, I assumed this was a mistake or an NA code, however, after doing a bit of research, it seems that this value is possible during extremely heavy pollution events and is often the the maximum value that many PM2.5 monitors can display. As such, it's quite possible that this station experienced PM 2.5 levels far exceeding 999.0 µg/m³ but was simply unable to record them. Given that there is only a single data point with this value and there are other data points between 900-999 µg/m³, I would likely keep this data point in, knowing that it may be somewhat biased. If there is some way to recover the true value using the other data fields, I would also consider this as a resolution. 
+> One value that surprises me is the max PM 2.5 of 999.0 µg/m³. Initially, I assumed this was a mistake or an NA code, however, after doing a bit of research, it seems that this value is possible during extremely heavy pollution events and is often the maximum value that many PM2.5 monitors can display. As such, it's quite possible that this station experienced a PM 2.5 level far exceeding 999.0 µg/m³ but was simply unable to record it. Given that there is only a single data point with this value and there are other data points between 900-999 µg/m³, I would likely keep this data point, knowing that it may be somewhat biased. If there is some way to recover the true value using the other data fields, I would also consider this as a resolution. 
 
 # Part 2: Data Wrangling (12 points)
 
@@ -193,13 +194,16 @@ d) In one sentence, explain why collapsing 16 wind levels into 4 is helpful for 
 ```{r q2-1}
 # Create a season factor
 air <- air %>% 
-  mutate(season = case_when( # Explicitly code each month/season pair
-    month %in% c(12, 1, 2) ~ "Winter",
+  mutate(season = factor(case_when( # Explicitly code each month/season pair
     month %in% c(3, 4, 5) ~ "Spring",
     month %in% c(6, 7, 8) ~ "Summer",
     month %in% c(9, 10, 11) ~ "Fall",
+    month %in% c(12, 1, 2) ~ "Winter",
     TRUE ~ NA # Set missing month data to NA in the season variable
-  ))
+  ),levels=c("Spring", # Set factor levels
+           "Summer",
+           "Fall",
+           "Winter")))
   
 # Tabulate season by month
 table(air$month,
@@ -216,15 +220,15 @@ air <- air %>%
   ))
 
 # Tabulate wind direction by wd including NA values
-table(air$wind_dir,
-      air$wd,
+table(air$wd,
+      air$wind_dir,
       useNA = "ifany")
 
 ```
 
 **Your answer:**
 
-> Collapsing 16 wind levels into 4 is useful for modeling because it reduces the number of model parameters thereby decreasing our degrees of freedom and making our model simpler.
+> Collapsing 16 wind levels into 4 is useful for modeling because it reduces the number of model parameters thereby making our model simpler. Additionally, by consolidating the wind levels, we increase the sample size of each, thereby making our later modeling estimates more stable.
 
 ### Question 2.2 — Build the daily dataset (8 points)
 
@@ -264,41 +268,79 @@ c) Report how many station-days have a missing `pm25` after the rule.
 
 ```{r q2-2}
 # Step 1: daily averages
-daily_means <- air %>% 
-  group_by(station,
+daily_means <- air %>%  # Create daily means
+  group_by(station, 
            date,
            season) %>% 
   summarize(pm25_hours = sum(!is.na(pm25)), # Number of hours that day with a non-missing PM2.5
             pm25 = mean(pm25, na.rm = TRUE), # Daily average PM2.5
             temp = mean(TEMP, na.rm = TRUE), # Daily average of temp 
             dewp = mean(DEWP, na.rm = TRUE), # Daily average of dewp
-            WSPM = mean(WSPM, na.rm = TRUE), # Daily average of wspm
+            wspm = mean(WSPM, na.rm = TRUE), # Daily average of wspm
             rain = sum(RAIN, na.rm = TRUE), # Daily total rainfall temp
             .groups = "drop")  # Drop level grouping
 
-# Spot check these values are correct for the first station
-daily_means_test <- air %>% 
-  filter(station == unique(air$station[1]) & date == unique(air$date[1])) # THIS IS NOT FINISHED YET
-  
-  
+# Inspect new dataframe
+head(daily_means) # One row per station per day
 
+# Spot check the averages are correct for the first station
+daily_means_test <- air %>% 
+  filter(station == unique(air$station[1]) & date == unique(air$date[1]))
+
+apply(daily_means_test[c("pm25",
+                         "TEMP",
+                         "DEWP",
+                         "WSPM")], 
+      2, 
+      mean, 
+      na.rm=TRUE)
+
+# These match so remove the temp variable to keep things clean
+rm(daily_means_test)
 
 # Step 2: most common wind direction each day
-
+daily_wind<- air %>%  # Create daily wind
+  filter(!is.na(wind_dir)) %>%  # Remove missing values
+  count(station, # Tally wind hours per direction per station
+        date, 
+        wind_dir) %>% 
+  group_by(station, 
+           date) %>% 
+  slice_max(n,  # Keep only the direction that blew the longest for each station per day
+            n = 1, 
+            with_ties = FALSE) %>% 
+  ungroup() %>% 
+  select(c(station, # Select variables of interest
+           date,
+           wind_dir))
+  
+# Inspect new dataframe
+head(daily_wind)
 
 # Step 3: join and apply the completeness rule
+air_daily <- left_join(daily_means, # Left join daily wind onto daily means
+                       daily_wind,
+                       by=c("station",
+                            "date")) %>% 
+  mutate(pm25 = if_else(pm25_hours < 18, # Set pm25 to NA if there are less than 18 hours recorded per station-day
+                        NA_real_, 
+                        pm25),
+         wind_dir = factor(wind_dir)) # Factorize wind direction
 
+# Inspect new dataframe 
+head(air_daily)
 
 # (a) dimensions
-
+dim(air_daily)
 
 # (b) number of station-days with missing pm25
-
+paste0("Station-days with a missing pm25: ",
+       sum(is.na(air_daily$pm25)))
 ```
 
 **Your answer:**
 
->
+> The air_daily dataframe has 10 columns, 17532 rows, and 368 missing station-day values for PM2.5 after applying the rule.
 
 ### Question 2.3 — Define the outcomes and a humidity measure (bundled into Part 2)
 
@@ -311,13 +353,45 @@ a) Add three variables to `air_daily`:
 b) Report the **percentage of unhealthy days by season** and describe it in 2–3 plain-language sentences for the director.
 
 ```{r q2-3}
-# Your code here
+# Add three columns to air_daily for Boolean unhealthy pm25, Boolean rain, and dryness
+air_daily <- air_daily %>% 
+  mutate(unhealthy = factor(ifelse(pm25>75, # Unhealthy days with PM2.5 > 75
+                                   "Yes",
+                                   "No"),
+                            levels=c("No",
+                                     "Yes")),
+         rain_any = factor(ifelse(rain>0, # Station days with rain > 0
+                                  "Yes",
+                                  "No"),
+                           levels=c("No",
+                                    "Yes")),
+         dryness = temp-dewp) # Overall dryness
 
+# Inspect new columns
+head(air_daily[,c("station",
+                  "date",
+                  "pm25",
+                  "unhealthy",
+                  "rain",
+                  "rain_any",
+                  "temp",
+                  "dewp",
+                  "dryness")])
+
+# Percentage of unhealthy days by season
+pct_table <- round(prop.table(table(air_daily$season, # Create porportion table
+                                    air_daily$unhealthy), 
+                              margin = 1)*100, # Mutiply by 100 to make more easily interpretable
+                   1) 
+
+pct_table[] <- paste0(pct_table, "%") # Add a percent sign so it's clear what I'm showing 
+
+pct_table # Print table
 ```
 
 **Your answer:**
 
->
+> Winter had the highest percentage of unhealthy days at a given station, with 45.2% of the days being unhealthy and 54.8% being healthy, while summer had the lowest percentage of unhealthy days, with 34.4% of the days being unhealthy and 65.6% being healthy. Fall and Spring had comparable percentages of unhealthy days, Fall 40.9% and Spring 40.8%, and healthy days, Fall 59.1% and Spring 59.2%. Overall, all of the seasons had more healthy days than unhealthy, however, Winter would be the first season to prioritize for an intervention targeting PM 2.5 levels. 
 
 # Part 3: Managing Missing Data (8 points)
 
